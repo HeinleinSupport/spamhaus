@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+
+# (c) 2020 Heinlein Support GmbH
+#          Robert Sander <r.sander@heinlein-support.de>
+
+# released under GPLv2
+# use at your own risk
+
+# This script can be used as a daily cronjob
+# that updates ipsets with the DROP data from Spamhaus
+# to be used in iptables firewalls
+
+from pyroute2.ipset import IPSet
+from socket import (AF_INET, AF_INET6)
+import requests
+
+spamhaus = {'dropv6': { 'url': 'https://www.spamhaus.org/drop/dropv6.txt',
+                        'ipset': 'spamhaus_inet6',
+                        'family': AF_INET6 },
+            'drop'  : { 'url': 'https://www.spamhaus.org/drop/drop.txt',
+                        'ipset': 'spamhaus_inet',
+                        'family': AF_INET },
+           }
+
+ipset = IPSet()
+
+for name, info in spamhaus.items():
+
+    print('Retrieving %s' % info['url'])
+    r = requests.get(info['url'])
+    if r.status_code == 200:
+
+        print('Flushing %s for Spamhaus %s' % (info['ipset'], name))
+        ipset.flush(name=info['ipset'])
+    
+        for line in r.text.split('\n'):
+            net = line.split(';')[0].strip()
+            if net:
+                 print('Adding %s' % net)
+                 ipset.add(name=info['ipset'], entry=net, etype='net', family=info['family'])
